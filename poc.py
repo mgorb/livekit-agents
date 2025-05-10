@@ -1,3 +1,5 @@
+# This code uses AWS Bedrock with Claude 3.5 Sonnet model and requires proper AWS credentials to be configured.
+
 import logging
 from dataclasses import dataclass, field
 from typing import Annotated, Optional, cast
@@ -6,11 +8,11 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import Field
 
-# Import plugin modules directly to avoid “unknown import symbol” issues
-import livekit.plugins.cartesia as cartesia
+# Import plugin modules directly to avoid "unknown import symbol" issues
 import livekit.plugins.edge_tts as edge_tts
-import livekit.plugins.openai as openai
+import livekit.plugins.aws as aws  # Import AWS plugin
 import livekit.plugins.silero as silero
+from livekit.agents.llm import function_tool
 from livekit.agents import JobContext, WorkerOptions, cli
 from livekit.agents.llm import function_tool
 from livekit.agents.voice import Agent, AgentSession, RunContext
@@ -18,6 +20,13 @@ from livekit.agents.voice.room_io import RoomInputOptions
 from livekit.plugins.whisper import whisper_stt
 
 # from livekit.plugins import noise_cancellation
+
+# AWS Bedrock model - replace with your preferred model or inference profile ARN
+aws_model = "eu.amazon.nova-pro-v1:0"
+
+# AWS configuration - these will be passed to the AWS LLM constructor
+# If not provided, the AWS plugin will use environment variables:
+# AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION
 
 logger = logging.getLogger("restaurant-example")
 logger.setLevel(logging.INFO)
@@ -135,10 +144,6 @@ class BaseAgent(Agent):
             chat_ctx.items.extend(items_copy)
 
         # add an instructions including the user data as assistant message
-        chat_ctx.add_message(
-            role="system",  # role=system works for OpenAI's LLM and Realtime API
-            content=f"You are {agent_name} agent. Current user data is {userdata.summarize()}",
-        )
         logger.debug("Updating chat context for %s", agent_name)
         await self.update_chat_ctx(chat_ctx)
         self.session.generate_reply(tool_choice="none")
@@ -157,12 +162,17 @@ class Greeter(BaseAgent):
     def __init__(self, menu: str) -> None:
         super().__init__(
             instructions=(
-                f"You are a friendly restaurant receptionist. The menu is: {menu}\n"
-                "Your jobs are to greet the caller and understand if they want to "
-                "make a reservation or order takeaway. Guide them to the right agent using tools."
-                "always answer in estonian"
+                f"Käitu nagu oleksid restorani omanik ning oled vastu võtnud kõne"
+                "sinu ülesandeks on uurida kas helistaja soovib restoranis lauda broneerida või tellida toitu kaasa. "
+                "Valida saab ainult ühte varianti. Alusta vestlust tervitusega."
+                "Selleks et broneerida lauda on vaja uurida millal soovib klient restorani tulla, vajalik on kuupäev ning kellaaeg. Täna on laupäev 10 mai 2025."
             ),
-            llm=openai.LLM(parallel_tool_calls=False),
+            llm=aws.LLM(
+                model=aws_model,
+                temperature=0.7,
+                tool_choice="auto",
+                # AWS credentials will be read from environment variables
+            ),
             tts=edge_tts.TTS(voice="et-EE-AnuNeural"),
         )
         self.menu = menu
@@ -344,9 +354,13 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession[UserData](
         userdata=userdata,
         stt=whisper_stt.WhisperSTT(model_name="TalTechNLP/whisper-large-et"),
-        llm=openai.LLM(),
+        llm=aws.LLM(
+            model=aws_model,
+            tool_choice="none",
+            # AWS credentials will be read from environment variables
+        ),
         tts=edge_tts.TTS(voice="et-EE-AnuNeural"),
-        vad=silero.VAD.load(),
+        vad=silero.VAD.load(activation_threshold=0.8),
         max_tool_steps=5,
         # to use realtime model, replace the stt, llm, tts and vad with the following
         # llm=openai.realtime.RealtimeModel(voice="alloy"),

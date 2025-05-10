@@ -20,8 +20,8 @@ SAMPLE_RATE = 16_000  # Hz (match Whisper)
 CHANNELS = 1  # mono
 SAMPLE_FORMAT = pyaudio.paInt16  # 16-bit signed
 CHUNK_MS = 100  # microphone chunk size in ms
-SEGMENT_SEC = 5  # number of seconds between sending audio to Whisper
-SILENCE_THRESHOLD = 5000  # maximum absolute value (int16) considered silence
+SEGMENT_SEC = 1  # number of seconds between sending audio to Whisper
+SILENCE_THRESHOLD = 50000  # maximum absolute value (int16) considered silence
 CHUNK_LENGTH = 10
 
 
@@ -115,7 +115,7 @@ def main():
                 # Transcribe
                 try:
                     result = transcriber(audio_np)
-                    logger.info(f"{noise}: {result.get('text', '')}")
+                    print(f"{noise}: {result.get('text', '')}")
                 except Exception as e:
                     logger.error(f"Error en la transcripción: {e}")
     except KeyboardInterrupt:

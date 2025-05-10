@@ -146,6 +146,12 @@ class TTS(tts.TTS):
         *,
         conn_options: APIConnectOptions | None = DEFAULT_API_CONNECT_OPTIONS,
     ) -> ChunkedStream:
+        import inspect
+        frame = inspect.stack()[1]  # Caller is at stack index 1
+        filename = frame.filename
+        lineno = frame.lineno
+        funcname = frame.function
+        print(f"Called from {funcname} in {filename}:{lineno}")
         """
         Synthesize text to speech.
 
@@ -237,7 +243,7 @@ class ChunkedStream(tts.ChunkedStream):
                 
                 if ca_bundle_path and os.path.exists(ca_bundle_path):
                     # Use the custom CA bundle
-                    logger.info(f"Using custom CA bundle from REQUESTS_CA_BUNDLE: {ca_bundle_path}")
+                    # logger.info(f"Using custom CA bundle from REQUESTS_CA_BUNDLE: {ca_bundle_path}")
                     try:
                         # Check if cafile is already in kwargs
                         if 'cafile' not in kwargs:
@@ -268,11 +274,11 @@ class ChunkedStream(tts.ChunkedStream):
             
             # Apply the monkey patch
             ssl.create_default_context = patched_create_default_context
-            logger.info("Applied SSL context patch")
+            #logger.info("Applied SSL context patch")
             
             # Configure the voice using the correct API
             try:
-                logger.info(f"Attempting to connect to Edge TTS service with voice: {self._opts.voice}")
+                logger.info(f"Attempting to connect to Edge TTS service with voice: {self._opts.voice} and text {self._input_text}")
                 communicate = edge_tts.Communicate(
                     text=self._input_text,
                     voice=self._opts.voice,
@@ -335,7 +341,7 @@ class ChunkedStream(tts.ChunkedStream):
                 
                 # Restore original SSL context creation function
                 ssl.create_default_context = original_create_default_context
-                raise
+                
             
             # Restore original SSL context creation function
             ssl.create_default_context = original_create_default_context

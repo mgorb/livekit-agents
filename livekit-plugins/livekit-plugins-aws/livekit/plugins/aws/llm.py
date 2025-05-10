@@ -191,7 +191,8 @@ class LLMStream(llm.LLMStream):
     async def _run(self) -> None:
         retryable = True
         try:
-            async with self._session.client("bedrock-runtime") as client:
+            async with self._session.client("bedrock-runtime", region_name="eu-north-1") as client:
+                print(self._opts)
                 response = await client.converse_stream(**self._opts)  # type: ignore
                 request_id = response["ResponseMetadata"]["RequestId"]
                 if response["ResponseMetadata"]["HTTPStatusCode"] != 200:

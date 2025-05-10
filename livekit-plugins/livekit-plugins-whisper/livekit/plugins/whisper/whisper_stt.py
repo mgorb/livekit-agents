@@ -34,6 +34,7 @@ except ImportError:
 SAMPLE_RATE = 16_000  # Hz (match Whisper)
 CHUNK_LENGTH = 10
 
+import inspect
 
 class WhisperSTT(stt.STT):
     def __init__(
@@ -92,6 +93,14 @@ class WhisperSTT(stt.STT):
     ) -> stt.SpeechEvent:
         """Implement the recognition method required by the STT interface"""
         
+        frame = inspect.stack()[1]  # Caller is at stack index 1
+        filename = frame.filename
+        lineno = frame.lineno
+        funcname = frame.function
+        print(f"Called from {funcname} in {filename}:{lineno}")
+        
+        
+        
         # Handle different types of audio buffers
         if isinstance(buffer, list):
             # Concatenate audio frames
@@ -129,6 +138,9 @@ class WhisperSTT(stt.STT):
             # Convert to int16 numpy array
             audio_int16 = np.frombuffer(audio_bytes, dtype=np.int16)
             
+            noise = np.max(np.abs(audio_int16))
+            logger.info(f"noise level {noise}")
+                
             # Convert to float32 and normalize
             audio_data = audio_int16.astype(np.float32) / 32768.0
             

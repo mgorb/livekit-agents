@@ -419,17 +419,6 @@ class Agent:
 
             wrapped_stt = activity.stt
             
-            # Add debug logging
-            logger.debug(
-                "STT capabilities check",
-                extra={
-                    "stt_type": type(activity.stt).__name__,
-                    "stt_dir": dir(activity.stt),
-                    "has_capabilities": hasattr(activity.stt, "capabilities"),
-                    "capabilities_dir": dir(activity.stt.capabilities) if hasattr(activity.stt, "capabilities") else None,
-                }
-            )
-
             # Check if STT has capabilities attribute and if streaming is supported
             if not hasattr(activity.stt, "capabilities") or not activity.stt.capabilities.streaming:
                 if not activity.vad:
