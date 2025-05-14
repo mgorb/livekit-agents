@@ -1,5 +1,3 @@
-# This code uses AWS Bedrock with Claude 3.5 Sonnet model and requires proper AWS credentials to be configured.
-
 import logging
 from dataclasses import dataclass, field
 from typing import Annotated, Optional, cast
@@ -8,11 +6,14 @@ import yaml
 from dotenv import load_dotenv
 from pydantic import Field
 
+import livekit.plugins.aws as aws  # Import AWS plugin
+
 # Import plugin modules directly to avoid "unknown import symbol" issues
 import livekit.plugins.edge_tts as edge_tts
-import livekit.plugins.aws as aws  # Import AWS plugin
+
+# In a real implementation, we would import the neurok_tts plugin like this:
+import livekit.plugins.neurok_tts as neurok_tts
 import livekit.plugins.silero as silero
-from livekit.agents.llm import function_tool
 from livekit.agents import JobContext, WorkerOptions, cli
 from livekit.agents.llm import function_tool
 from livekit.agents.voice import Agent, AgentSession, RunContext
@@ -119,7 +120,7 @@ async def update_phone(
 
 @function_tool()
 async def to_greeter(context: RunContext_T) -> tuple[Agent, str]:
-    """Called when the user asks unrelated questions or requests services outside the current agent’s scope."""
+    """Called when the user asks unrelated questions or requests services outside the current agent's scope."""
     logger.info("to_greeter called")
     # Narrow the type for mypy/Pylance via cast; runtime check is unnecessary
     curr_agent = cast(BaseAgent, context.session.current_agent)
@@ -174,6 +175,8 @@ class Greeter(BaseAgent):
                 # AWS credentials will be read from environment variables
             ),
             tts=edge_tts.TTS(voice="et-EE-AnuNeural"),
+            # In a real implementation with neurok_tts installed:
+            # tts=neurok_tts.TTS(speaker="mari"),
         )
         self.menu = menu
 
@@ -204,6 +207,8 @@ class Reservation(BaseAgent):
             "always answer in estonian",
             tools=[update_name, update_phone, to_greeter],
             tts=edge_tts.TTS(voice="et-EE-AnuNeural"),
+            # In a real implementation with neurok_tts installed:
+            # tts=neurok_tts.TTS(speaker="liivika"),
         )
 
     @function_tool()
@@ -244,6 +249,8 @@ class Takeaway(BaseAgent):
             ),
             tools=[to_greeter],
             tts=edge_tts.TTS(voice="et-EE-AnuNeural"),
+            # In a real implementation with neurok_tts installed:
+            # tts=neurok_tts.TTS(speaker="albert"),
         )
 
     @function_tool()
@@ -281,6 +288,8 @@ class Checkout(BaseAgent):
             ),
             tools=[update_name, update_phone, to_greeter],
             tts=edge_tts.TTS(voice="et-EE-AnuNeural"),
+            # In a real implementation with neurok_tts installed:
+            # tts=neurok_tts.TTS(speaker="meelis"),
         )
 
     @function_tool()
@@ -360,6 +369,8 @@ async def entrypoint(ctx: JobContext):
             # AWS credentials will be read from environment variables
         ),
         tts=edge_tts.TTS(voice="et-EE-AnuNeural"),
+        # In a real implementation with neurok_tts installed:
+        # tts=neurok_tts.TTS(speaker="mari"),
         vad=silero.VAD.load(activation_threshold=0.8),
         max_tool_steps=5,
         # to use realtime model, replace the stt, llm, tts and vad with the following

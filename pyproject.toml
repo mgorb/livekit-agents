@@ -17,6 +17,7 @@ livekit-plugins-nltk = { workspace = true }
 livekit-plugins-openai = { workspace = true }
 livekit-plugins-whisper = { workspace = true }
 livekit-plugins-edge-tts = { workspace = true }
+livekit-plugins-neurok-tts = { workspace = true }
 livekit-plugins-rime = { workspace = true }
 livekit-plugins-silero = { workspace = true }
 livekit-plugins-speechmatics = { workspace = true }
