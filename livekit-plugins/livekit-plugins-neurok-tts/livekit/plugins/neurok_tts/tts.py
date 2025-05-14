@@ -15,18 +15,15 @@
 from __future__ import annotations
 
 import asyncio
-import io
+import json
 import os
 import tempfile
-import json
-import base64
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from livekit.agents import (
     APIConnectionError,
     APIConnectOptions,
-    APIStatusError,
     APITimeoutError,
     tokenize,
     tts,
@@ -40,7 +37,7 @@ from livekit.agents.types import (
 from livekit.agents.utils import is_given
 
 from .log import logger
-from .models import DEFAULT_SPEAKER, DEFAULT_SPEED, DEFAULT_SAMPLE_RATE, NeurokTTSSpeakers
+from .models import DEFAULT_SAMPLE_RATE, DEFAULT_SPEAKER, DEFAULT_SPEED
 
 
 @dataclass
@@ -140,7 +137,7 @@ class TTS(tts.TTS):
         )
 
     @staticmethod
-    async def list_voices() -> List[Dict[str, Any]]:
+    async def list_voices() -> list[dict[str, Any]]:
         """
         List available voices.
 
@@ -294,11 +291,11 @@ class ChunkedStream(tts.ChunkedStream):
                 
                 # This is where you would call the neurok-tts CLI
                 # For now, we'll use a fallback approach for testing
-                
+
                 # We'll use a fallback approach since direct imports may not work
                 # In a real implementation, you would ensure the neurok-tts package is properly installed
                 logger.warning("Using fallback audio generation for testing")
-                
+
                 # Generate a simple sine wave as fallback
                 # In a production environment, this would be replaced with actual neurok-tts integration
                 import numpy as np

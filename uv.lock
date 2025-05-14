@@ -1920,7 +1920,6 @@ requires-dist = [{ name = "livekit-agents", editable = "livekit-agents" }]
 
 [[package]]
 name = "livekit-plugins-neurok-tts"
-version = "1.0.0"
 source = { editable = "livekit-plugins/livekit-plugins-neurok-tts" }
 dependencies = [
     { name = "livekit-agents" },
