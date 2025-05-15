@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from pydantic import Field
 
 import livekit.plugins.aws as aws  # Import AWS plugin
-import livekit.plugins.edge_tts as edge_tts
 import livekit.plugins.neurok_tts as neurok_tts
 import livekit.plugins.silero as silero
 from livekit.agents import JobContext, WorkerOptions, cli
@@ -108,7 +107,7 @@ async def update_phone(
 ) -> str:
     """Called when the user provides their phone number.
     Confirm the spelling with the user before calling the function."""
-    logger.info("update_phone called ‑ new phone=%s", phone)
+    logger.info("update_phone called - new phone=%s", phone)
     userdata = context.userdata
     userdata.customer_phone = phone
     return f"The phone number is updated to {phone}"
@@ -159,7 +158,7 @@ class Greeter(BaseAgent):
     def __init__(self, menu: str) -> None:
         super().__init__(
             instructions=(
-                f"Käitu nagu oleksid restorani omanik ning oled vastu võtnud kõne"
+                "Käitu nagu oleksid restorani omanik ning oled vastu võtnud kõne"
                 "sinu ülesandeks on uurida kas helistaja soovib restoranis lauda broneerida või tellida toitu kaasa. "
                 "Valida saab ainult ühte varianti. Alusta vestlust tervitusega."
                 "Selleks et broneerida lauda on vaja uurida millal soovib klient restorani tulla, vajalik on kuupäev ning kellaaeg. Täna on laupäev 10 mai 2025."
