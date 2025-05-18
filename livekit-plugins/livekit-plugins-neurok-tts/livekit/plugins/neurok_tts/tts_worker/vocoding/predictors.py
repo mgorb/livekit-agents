@@ -6,8 +6,8 @@ from typing import List
 import numpy as np
 import torch
 
-from tts_worker.vocoding.hifigan.env import AttrDict
-from tts_worker.vocoding.hifigan.models import Generator as GeneratorHiFiGAN
+from .hifigan.env import AttrDict
+from .hifigan.models import Generator as GeneratorHiFiGAN
 
 logger = logging.getLogger(__name__)
 

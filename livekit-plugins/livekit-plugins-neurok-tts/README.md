@@ -23,11 +23,38 @@ pip install livekit-plugins-neurok-tts[neurok]
 - Python 3.9 or higher
 - LiveKit Agents 0.7.0 or higher
 
+### Dependencies
+
+The plugin requires the following main dependencies:
+- tensorflow (≥2.10.0)
+- tf-keras (≥2.15.0)
+- torch (≥2.0.0)
+- torchaudio (≥2.0.0)
+- numpy (≥1.20.0)
+- scipy (≥1.7.0)
+- nltk (≥3.9.0)
+- ruamel.yaml (≥0.16.6)
+- pydantic (≥2.0.0)
+- pydantic-settings (≥2.0.0)
+- pyyaml (≥6.0.0)
+- matplotlib (≥3.2.2)
+- webrtcvad (≥2.0.10)
+- pyworld (≥0.3.4)
+- p_tqdm (≥1.4.0)
+- pika (≥1.3.0) - for RabbitMQ integration
+
 ### Full Neurok TTS Support
 
 For full Neurok TTS functionality, you'll need:
 
 1. The optional neurok dependencies: `pip install livekit-plugins-neurok-tts[neurok]`
+   - This includes:
+     - estnltk (≥1.7.0)
+     - phonemizer (≥3.0.0)
+     - librosa (≥0.10.0)
+     - soundfile (≥0.12.0)
+     - tqdm (≥4.60.0)
+     - numba (≥0.53.0)
 2. The Neurok TTS system installed and configured
 3. Access to the Neurok TTS models and vocoders
 

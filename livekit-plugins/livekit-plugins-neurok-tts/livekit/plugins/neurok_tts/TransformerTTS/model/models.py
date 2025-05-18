@@ -5,8 +5,19 @@ from typing import Optional
 
 import numpy as np
 import tensorflow as tf
-from data.text import TextToTokens
-from model.layers import (
+from ruamel.yaml import YAML
+from tf_keras import Model
+from tf_keras.layers import Dense, Embedding
+
+from livekit.plugins.neurok_tts.TransformerTTS.data.text import TextToTokens
+from livekit.plugins.neurok_tts.TransformerTTS.utils.losses import (
+    masked_mean_absolute_error,
+    new_scaled_crossentropy,
+    weighted_sum_losses,
+)
+from livekit.plugins.neurok_tts.TransformerTTS.utils.metrics import batch_diagonal_mask
+
+from .layers import (
     CrossAttentionBlocks,
     DecoderPrenet,
     Expand,
@@ -14,16 +25,11 @@ from model.layers import (
     SelfAttentionBlocks,
     StatPredictor,
 )
-from model.transformer_utils import (
+from .transformer_utils import (
     create_encoder_padding_mask,
     create_look_ahead_mask,
     create_mel_padding_mask,
 )
-from ruamel.yaml import YAML
-from tf_keras import Model
-from tf_keras.layers import Dense, Embedding
-from utils.losses import masked_mean_absolute_error, new_scaled_crossentropy, weighted_sum_losses
-from utils.metrics import batch_diagonal_mask
 
 
 class Multispeaker(str, Enum):

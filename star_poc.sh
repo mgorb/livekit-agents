@@ -1,0 +1,1 @@
+LIVEKIT_API_SECRET=secret LIVEKIT_API_KEY=devkey OPENAI_API_KEY=sk- CARTESIA_API_KEY=sk_car_  DEEPGRAM_API_KEY=  python poc.py connect --room my-room

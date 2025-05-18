@@ -23,7 +23,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 # Import edge-tts at function level to avoid import errors
-
 from livekit.agents import (
     APIConnectionError,
     APIConnectOptions,

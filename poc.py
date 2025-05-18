@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Annotated, Optional, cast
 
+from livekit.plugins import openai
 import yaml
 from dotenv import load_dotenv
 from pydantic import Field
@@ -19,6 +20,7 @@ from livekit.plugins.whisper import whisper_stt
 
 # AWS Bedrock model - replace with your preferred model or inference profile ARN
 aws_model = "eu.amazon.nova-pro-v1:0"
+openai_model = "gpt-4o-mini"
 
 # AWS configuration - these will be passed to the AWS LLM constructor
 # If not provided, the AWS plugin will use environment variables:
@@ -163,13 +165,13 @@ class Greeter(BaseAgent):
                 "Valida saab ainult ühte varianti. Alusta vestlust tervitusega."
                 "Selleks et broneerida lauda on vaja uurida millal soovib klient restorani tulla, vajalik on kuupäev ning kellaaeg. Täna on laupäev 10 mai 2025."
             ),
-            llm=aws.LLM(
-                model=aws_model,
-                temperature=0.7,
-                tool_choice="auto",
-                # AWS credentials will be read from environment variables
+            llm=openai.LLM(model=openai_model),
+            tts=neurok_tts.TTS(
+                speaker="mari",       # Choose from available voices
+                speed=1.0,            # Adjust speech speed (1.0 is normal)
+                model_config_path="/Users/maksimgorb/git/agents/neurok-tts/config",
+                model_name="multispeaker"
             ),
-            tts=neurok_tts.TTS(speaker="mari"),
         )
         self.menu = menu
 
@@ -199,7 +201,12 @@ class Reservation(BaseAgent):
             "confirm the reservation details with the customer."
             "always answer in estonian",
             tools=[update_name, update_phone, to_greeter],
-            tts=neurok_tts.TTS(speaker="liivika"),
+            tts=neurok_tts.TTS(
+                speaker="liivika",       # Choose from available voices
+                speed=1.0,            # Adjust speech speed (1.0 is normal)
+                model_config_path="/Users/maksimgorb/git/agents/neurok-tts/config",
+                model_name="multispeaker"
+            ),
         )
 
     @function_tool()
@@ -239,7 +246,12 @@ class Takeaway(BaseAgent):
                 "always answer in estonian"
             ),
             tools=[to_greeter],
-            tts=neurok_tts.TTS(speaker="liivika"),
+            tts=neurok_tts.TTS(
+                speaker="liivika",       # Choose from available voices
+                speed=1.0,            # Adjust speech speed (1.0 is normal)
+                model_config_path="/Users/maksimgorb/git/agents/neurok-tts/config",
+                model_name="multispeaker"
+            ),
         )
 
     @function_tool()
@@ -276,7 +288,12 @@ class Checkout(BaseAgent):
                 "always answer in estonian"
             ),
             tools=[update_name, update_phone, to_greeter],
-            tts=neurok_tts.TTS(speaker="liivika"),
+            tts=neurok_tts.TTS(
+                speaker="liivika",       # Choose from available voices
+                speed=1.0,            # Adjust speech speed (1.0 is normal)
+                model_config_path="/Users/maksimgorb/git/agents/neurok-tts/config",
+                model_name="multispeaker"
+            ),
         )
 
     @function_tool()
@@ -350,12 +367,13 @@ async def entrypoint(ctx: JobContext):
     session = AgentSession[UserData](
         userdata=userdata,
         stt=whisper_stt.WhisperSTT(model_name="TalTechNLP/whisper-large-et"),
-        llm=aws.LLM(
-            model=aws_model,
-            tool_choice="none",
-            # AWS credentials will be read from environment variables
-        ),
-        tts=neurok_tts.TTS(speaker="liivika"),
+        llm=openai.LLM(model=openai_model),
+        tts=neurok_tts.TTS(
+                speaker="liivika",       # Choose from available voices
+                speed=1.0,            # Adjust speech speed (1.0 is normal)
+                model_config_path="/Users/maksimgorb/git/agents/neurok-tts/config",
+                model_name="multispeaker"
+            ),
         vad=silero.VAD.load(activation_threshold=0.8),
         max_tool_steps=5,
         # to use realtime model, replace the stt, llm, tts and vad with the following

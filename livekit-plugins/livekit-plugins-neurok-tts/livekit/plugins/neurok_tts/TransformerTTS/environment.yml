@@ -1,0 +1,19 @@
+channels:
+  - conda-forge
+dependencies:
+  - python==3.8
+  - matplotlib==3.2.2
+  - librosa==0.7.1
+  - numba==0.48
+  - numpy==1.17.4
+  - ruamel.yaml==0.16.6
+  - tensorflow-gpu>=2.2.0
+  - tqdm
+  - pysoundfile
+  - scipy
+  - pip
+  - pip:
+      - webrtcvad
+      - p_tqdm
+      - pyworld
+      - phonemizer==2.2.1

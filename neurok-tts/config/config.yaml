@@ -1,9 +1,9 @@
 vocoders:
-  vctk: models/hifigan/vctk # the directory which should contain a .json and .pt file
-  ljspeech: models/hifigan/ljspeech
+  vctk: /Users/maksimgorb/git/agents/neurok-tts/models/hifigan/vctk # the directory which should contain a .json and .pt file
+  ljspeech: /Users/maksimgorb/git/agents/neurok-tts/models/hifigan/ljspeech
 tts_models:
   multispeaker:
-    model_path: models/tts/multispeaker # the directory that contains a yaml and hdf5 files for the model
+    model_path: /Users/maksimgorb/git/agents/neurok-tts/models/multispeaker # the directory that contains a yaml and hdf5 files for the model
     frontend: 'est'
     speakers: # a mapping of speaker names (as they will be used in routing keys, speaker-ids in the model and the vocoder to be used)
       albert:
