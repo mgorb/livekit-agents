@@ -4,9 +4,10 @@ import asyncio
 import contextlib
 import json
 import os
+import time
 import weakref
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from google import genai
 from google.genai.live import AsyncSession
@@ -26,6 +27,7 @@ from google.genai.types import (
     LiveServerToolCall,
     LiveServerToolCallCancellation,
     Modality,
+    ModalityTokenCount,
     Part,
     PrebuiltVoiceConfig,
     RealtimeInputConfig,
@@ -37,12 +39,13 @@ from google.genai.types import (
 )
 from livekit import rtc
 from livekit.agents import llm, utils
+from livekit.agents.metrics import RealtimeModelMetrics
 from livekit.agents.types import NOT_GIVEN, NotGivenOr
 from livekit.agents.utils import audio as audio_utils, images, is_given
 from livekit.plugins.google.beta.realtime.api_proto import ClientEvents, LiveAPIModels, Voice
 
 from ...log import logger
-from ...utils import _build_gemini_fnc, get_tool_results_for_realtime, to_chat_ctx
+from ...utils import get_tool_results_for_realtime, to_chat_ctx, to_fnc_ctx
 
 INPUT_AUDIO_SAMPLE_RATE = 16000
 INPUT_AUDIO_CHANNELS = 1
@@ -95,6 +98,15 @@ class _ResponseGeneration:
     audio_ch: utils.aio.Chan[rtc.AudioFrame]
     input_transcription: str = ""
 
+    _created_timestamp: float = field(default_factory=time.time)
+    """The timestamp when the generation is created"""
+    _first_token_timestamp: float | None = None
+    """The timestamp when the first audio token is received"""
+    _completed_timestamp: float | None = None
+    """The timestamp when the generation is completed"""
+    _done: bool = False
+    """Whether the generation is done (set when the turn is complete)"""
+
 
 class RealtimeModel(llm.RealtimeModel):
     def __init__(
@@ -106,7 +118,7 @@ class RealtimeModel(llm.RealtimeModel):
         voice: Voice | str = "Puck",
         language: NotGivenOr[str] = NOT_GIVEN,
         modalities: NotGivenOr[list[Modality]] = NOT_GIVEN,
-        vertexai: bool = False,
+        vertexai: NotGivenOr[bool] = NOT_GIVEN,
         project: NotGivenOr[str] = NOT_GIVEN,
         location: NotGivenOr[str] = NOT_GIVEN,
         candidate_count: int = 1,
@@ -124,7 +136,7 @@ class RealtimeModel(llm.RealtimeModel):
         Initializes a RealtimeModel instance for interacting with Google's Realtime API.
 
         Environment Requirements:
-        - For VertexAI: Set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path of the service account key file.
+        - For VertexAI: Set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path of the service account key file or use any of the other Google Cloud auth methods.
         The Google Cloud project and location can be set via `project` and `location` arguments or the environment variables
         `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION`. By default, the project is inferred from the service account key file,
         and the location defaults to "us-central1".
@@ -180,8 +192,13 @@ class RealtimeModel(llm.RealtimeModel):
             if is_given(location)
             else os.environ.get("GOOGLE_CLOUD_LOCATION") or "us-central1"
         )
+        use_vertexai = (
+            vertexai
+            if is_given(vertexai)
+            else os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "0").lower() in ["true", "1"]
+        )
 
-        if vertexai:
+        if use_vertexai:
             if not gcp_project or not gcp_location:
                 raise ValueError(
                     "Project is required for VertexAI via project kwarg or GOOGLE_CLOUD_PROJECT environment variable"  # noqa: E501
@@ -200,7 +217,7 @@ class RealtimeModel(llm.RealtimeModel):
             api_key=gemini_api_key,
             voice=voice,
             response_modalities=modalities,
-            vertexai=vertexai,
+            vertexai=use_vertexai,
             project=gcp_project,
             location=gcp_location,
             candidate_count=candidate_count,
@@ -338,7 +355,7 @@ class RealtimeSession(llm.RealtimeSession):
                 self._send_client_event(tool_results)
 
     async def update_tools(self, tools: list[llm.FunctionTool]) -> None:
-        new_declarations: list[FunctionDeclaration] = [_build_gemini_fnc(tool) for tool in tools]
+        new_declarations: list[FunctionDeclaration] = to_fnc_ctx(tools)
         current_tool_names = {f.name for f in self._gemini_declarations}
         new_tool_names = {f.name for f in new_declarations}
 
@@ -436,7 +453,7 @@ class RealtimeSession(llm.RealtimeSession):
         self._response_created_futures.clear()
 
         if self._current_generation:
-            self._finalize_response()
+            self._mark_current_generation_done()
 
     @utils.log_exceptions(logger=logger)
     async def _main_task(self):
@@ -530,7 +547,7 @@ class RealtimeSession(llm.RealtimeSession):
                         break
 
                 async for response in session.receive():
-                    if not self._current_generation and (
+                    if (not self._current_generation or self._current_generation._done) and (
                         response.server_content or response.tool_call
                     ):
                         self._start_new_generation()
@@ -561,7 +578,7 @@ class RealtimeSession(llm.RealtimeSession):
                 logger.error(f"error in receive task: {e}", exc_info=e)
                 self._mark_restart_needed()
         finally:
-            self._finalize_response()
+            self._mark_current_generation_done()
 
     def _build_connect_config(self) -> LiveConnectConfig:
         temp = self._opts.temperature if is_given(self._opts.temperature) else None
@@ -604,9 +621,9 @@ class RealtimeSession(llm.RealtimeSession):
         )
 
     def _start_new_generation(self):
-        if self._current_generation:
+        if self._current_generation and not self._current_generation._done:
             logger.warning("starting new generation while another is active. Finalizing previous.")
-            self._finalize_response()
+            self._mark_current_generation_done()
 
         response_id = utils.shortuuid("gemini-turn-")
         self._current_generation = _ResponseGeneration(
@@ -615,6 +632,7 @@ class RealtimeSession(llm.RealtimeSession):
             response_id=response_id,
             text_ch=utils.aio.Chan[str](),
             audio_ch=utils.aio.Chan[rtc.AudioFrame](),
+            _created_timestamp=time.time(),
         )
 
         self._current_generation.message_ch.send_nowait(
@@ -649,6 +667,8 @@ class RealtimeSession(llm.RealtimeSession):
                 if part.text:
                     current_gen.text_ch.send_nowait(part.text)
                 if part.inline_data:
+                    if not current_gen._first_token_timestamp:
+                        current_gen._first_token_timestamp = time.time()
                     frame_data = part.inline_data.data
                     try:
                         frame = rtc.AudioFrame(
@@ -662,9 +682,13 @@ class RealtimeSession(llm.RealtimeSession):
                         logger.error(f"Error creating audio frame from Gemini data: {e}")
 
         if input_transcription := server_content.input_transcription:
-            logger.info(f"input_transcription: {input_transcription}")
-            if input_transcription.text:
-                current_gen.input_transcription += input_transcription.text
+            text = input_transcription.text
+            if text:
+                if current_gen.input_transcription == "":
+                    # gemini would start with a space, which doesn't make sense
+                    # at beginning of the transcript
+                    text = text.lstrip()
+                current_gen.input_transcription += text
                 self.emit(
                     "input_audio_transcription_completed",
                     llm.InputTranscriptionCompleted(
@@ -675,8 +699,9 @@ class RealtimeSession(llm.RealtimeSession):
                 )
 
         if output_transcription := server_content.output_transcription:
-            if output_transcription.text:
-                current_gen.text_ch.send_nowait(output_transcription.text)
+            text = output_transcription.text
+            if text:
+                current_gen.text_ch.send_nowait(text)
 
         if server_content.generation_complete:
             # The only way we'd know that the transcription is complete is by when they are
@@ -690,19 +715,19 @@ class RealtimeSession(llm.RealtimeSession):
                         is_final=True,
                     ),
                 )
-            self._finalize_response()
+            current_gen._completed_timestamp = time.time()
 
         if server_content.interrupted:
-            self._finalize_response()
             self._handle_input_speech_started()
 
-    def _finalize_response(self) -> None:
+        if server_content.turn_complete:
+            self._mark_current_generation_done()
+
+    def _mark_current_generation_done(self) -> None:
         if not self._current_generation:
             return
 
         gen = self._current_generation
-        self._current_generation = None
-
         if not gen.text_ch.closed:
             gen.text_ch.close()
         if not gen.audio_ch.closed:
@@ -710,6 +735,7 @@ class RealtimeSession(llm.RealtimeSession):
 
         gen.function_ch.close()
         gen.message_ch.close()
+        gen._done = True
 
     def _handle_input_speech_started(self):
         self.emit("input_speech_started", llm.InputSpeechStartedEvent())
@@ -730,7 +756,7 @@ class RealtimeSession(llm.RealtimeSession):
                     arguments=arguments,
                 )
             )
-        self._finalize_response()
+        self._mark_current_generation_done()
 
     def _handle_tool_call_cancellation(
         self, tool_call_cancellation: LiveServerToolCallCancellation
@@ -741,8 +767,62 @@ class RealtimeSession(llm.RealtimeSession):
         )
 
     def _handle_usage_metadata(self, usage_metadata: UsageMetadata):
-        # TODO: handle metrics
-        logger.debug("usage metadata", extra={"usage_metadata": usage_metadata})
+        current_gen = self._current_generation
+        if not current_gen:
+            logger.warning("no active generation to report metrics for")
+            return
+
+        ttft = (
+            current_gen._first_token_timestamp - current_gen._created_timestamp
+            if current_gen._first_token_timestamp
+            else -1
+        )
+        duration = (
+            current_gen._completed_timestamp or time.time()
+        ) - current_gen._created_timestamp
+
+        def _token_details_map(
+            token_details: list[ModalityTokenCount] | None,
+        ) -> dict[Modality, int]:
+            token_details_map = {"audio_tokens": 0, "text_tokens": 0, "image_tokens": 0}
+            if not token_details:
+                return token_details_map
+
+            for token_detail in token_details:
+                if token_detail.modality == Modality.AUDIO:
+                    token_details_map["audio_tokens"] += token_detail.token_count
+                elif token_detail.modality == Modality.TEXT:
+                    token_details_map["text_tokens"] += token_detail.token_count
+                elif token_detail.modality == Modality.IMAGE:
+                    token_details_map["image_tokens"] += token_detail.token_count
+            return token_details_map
+
+        metrics = RealtimeModelMetrics(
+            label=self._realtime_model._label,
+            request_id=current_gen.response_id,
+            timestamp=current_gen._created_timestamp,
+            duration=duration,
+            ttft=ttft,
+            cancelled=False,
+            input_tokens=usage_metadata.prompt_token_count or 0,
+            output_tokens=usage_metadata.response_token_count or 0,
+            total_tokens=usage_metadata.total_token_count or 0,
+            tokens_per_second=(usage_metadata.response_token_count or 0) / duration,
+            input_token_details=RealtimeModelMetrics.InputTokenDetails(
+                **_token_details_map(usage_metadata.prompt_tokens_details),
+                cached_tokens=sum(
+                    token_detail.token_count or 0
+                    for token_detail in usage_metadata.cache_tokens_details or []
+                ),
+                cached_tokens_details=RealtimeModelMetrics.CachedTokenDetails(
+                    **_token_details_map(usage_metadata.cache_tokens_details),
+                ),
+            ),
+            output_token_details=RealtimeModelMetrics.OutputTokenDetails(
+                **_token_details_map(usage_metadata.response_tokens_details),
+            ),
+        )
+        self.emit("metrics_collected", metrics)
 
     def _handle_go_away(self, go_away: LiveServerGoAway):
         logger.warning(
